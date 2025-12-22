@@ -9,7 +9,7 @@ CXXFLAGS += -MMD -MP -I$(SOURCE_DIR)
 LD_FLAGS := -shared -ldl
 
 THIS_MAKEFULE := $(firstword $(MAKEFILE_LIST))
-SOURCES != find $(SOURCE_DIR) -name '*.c' ! -wholename 'src/main.c'
+SOURCES != find $(SOURCE_DIR) -name '*.c'
 OBJECTS := ${SOURCES:%.c=$(BUILD_DIR)%.o}
 
 $(BUILD_DIR)%.o: %.c $(THIS_MAKEFILE)

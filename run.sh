@@ -1,2 +1,7 @@
 gcc -o main main.c
-LD_PRELOAD=$PWD/dummmy_malloc/libdummy_malloc.so ./main
+lib=dummy_malloc/libdummy_malloc.so
+if [ $# -gt 0 ]; then
+	lib=$1
+fi
+
+LD_PRELOAD=$PWD/$lib ./main

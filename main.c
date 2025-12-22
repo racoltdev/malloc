@@ -6,4 +6,5 @@ int main() {
 	int* arr = 0;
 	arr = (int*)malloc(sizeof(int) * 1);
 	printf("alloc at %p\n", arr);
+	free(arr);
 }
