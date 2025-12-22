@@ -4,9 +4,9 @@ LIB := lib$(TARGET)
 BUILD_DIR := build/
 SOURCE_DIR := ./
 
-CXXFLAGS := -g3 -Wall -Wextra -Wpedantic -Wconversion -Wno-missing-field-initializers -shared -fPIC -ldl
+CXXFLAGS := -g3 -Wall -Wextra -Wpedantic -Wconversion -Wno-missing-field-initializers -fPIC
 CXXFLAGS += -MMD -MP -I$(SOURCE_DIR)
-LD_FLAGS := -shared -fPIC -ldl
+LD_FLAGS := -shared -ldl
 
 THIS_MAKEFULE := $(firstword $(MAKEFILE_LIST))
 SOURCES != find $(SOURCE_DIR) -name '*.c' ! -wholename 'src/main.c'
