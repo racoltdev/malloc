@@ -7,9 +7,50 @@
 #include <stdio.h>    // fprintf, sprintf
 #include <string.h>   // strlen
 #include <inttypes.h> // PRIxPTR
+#include <fcntl.h>     // open
+#include <errno.h>
 
-static FILE *mallstream;
+static FILE* mallstream;
 static const char mallenv[] = "MALLOC_TRACE";
+
+// If this turns out to be a problem, figure out how to port libc_freeres() from glibc-2.41/malloc/set-freeres.c
+static void release_libc_mem(void) {
+	if (mallstream != NULL) {
+		//__libc_freeres();
+	}
+}
+
+static void do_mtrace(void) {
+	static int added_atexit_handler;
+	char* mallfile;
+
+	// Don't panic if called more than once
+	if (mallstream != NULL) {
+		return;
+	}
+
+	mallfile = secure_getenv(mallenv);
+	if (mallfile != NULL) {
+		// fopen relies on malloc to run. This infinitely recurses. Use syscalls directly and hope it doesn't break.
+		//mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
+		fprintf(stderr, "%s\n", mallfile);
+		int fd = open(mallfile != NULL ? mallfile : "/dev/null", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRUSR | S_IWUSR);
+		mallstream = fdopen(fd, "wce");
+		exit(0);
+		if (mallstream != NULL) {
+			// Be sure it doesn't malloc its own buffer!
+			static char tracebuf[512];
+
+			setvbuf(mallstream, tracebuf, _IOFBF, sizeof(tracebuf));
+			fprintf(mallstream, "= Start\n");
+			if (!added_atexit_handler) {
+				added_atexit_handler = 1;
+				// TODO I need to dig into libc and figure out how to make a proper exit handler.
+				//__cxa_atexit((void (*)(void *))release_libc_mem, NULL, __dso_handle);
+			}
+		}
+	}
+}
 
 static void tr_where(const void* caller, Dl_info* info) {
 	if (caller != NULL) {
@@ -50,6 +91,8 @@ static void tr_where(const void* caller, Dl_info* info) {
 }
 
 static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
+	do_mtrace();
+
 	if (caller == NULL) {
 		return NULL;
 	}
@@ -66,10 +109,19 @@ void* malloc(size_t size) {
 		*(void **) (&libc_malloc) = dlsym(RTLD_NEXT, "malloc");
 	}
 
-	fprintf(stderr, "malloc(%zu)", size);
-	void* address = libc_malloc(size);
-	fprintf(stderr, ": %p\n", address);
-	return address;
+	void* block = libc_malloc(size);
+	// GCC builtin black magic. See glibc-2.41/include libc-symbols.h: #define RETURN_ADDRESS (nr) for details
+	const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+	Dl_info mem;
+	Dl_info* info = lock_and_info(caller, &mem);
+//
+//	tr_where(caller, info);
+//	/* We could be printing a NULL here; that's OK. */
+//	fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+//
+	funlockfile(mallstream);
+	return block;
 }
 
 void free(void* ptr) {

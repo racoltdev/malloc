@@ -1,5 +1,7 @@
 main
 build/
+ignore/
+*.trace
 *.so
 *.o
 *.d
