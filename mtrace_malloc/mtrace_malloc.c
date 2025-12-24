@@ -9,9 +9,15 @@
 #include <inttypes.h> // PRIxPTR
 #include <fcntl.h>     // open
 #include <errno.h>
+#include <stdbool.h>
 
 static FILE* mallstream;
 static const char mallenv[] = "MALLOC_TRACE";
+
+enum InitState {
+	UNINITIALIZED, PARTIAL, INITIALIZED
+};
+static enum InitState init_state = UNINITIALIZED;
 
 // If this turns out to be a problem, figure out how to port libc_freeres() from glibc-2.41/malloc/set-freeres.c
 static void release_libc_mem(void) {
@@ -20,23 +26,24 @@ static void release_libc_mem(void) {
 	}
 }
 
+//TODO use malloc/free as variable symbols. Have them equal to libc_malloc during initialization, then replace them with mine
 static void do_mtrace(void) {
 	static int added_atexit_handler;
 	char* mallfile;
 
+
 	// Don't panic if called more than once
-	if (mallstream != NULL) {
+	if (mallstream != NULL || init_state > UNINITIALIZED) {
 		return;
 	}
 
 	mallfile = secure_getenv(mallenv);
 	if (mallfile != NULL) {
+		init_state = PARTIAL;
 		// fopen relies on malloc to run. This infinitely recurses. Use syscalls directly and hope it doesn't break.
 		//mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
 		fprintf(stderr, "%s\n", mallfile);
-		int fd = open(mallfile != NULL ? mallfile : "/dev/null", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRUSR | S_IWUSR);
-		mallstream = fdopen(fd, "wce");
-		exit(0);
+		mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
 		if (mallstream != NULL) {
 			// Be sure it doesn't malloc its own buffer!
 			static char tracebuf[512];
@@ -49,6 +56,7 @@ static void do_mtrace(void) {
 				//__cxa_atexit((void (*)(void *))release_libc_mem, NULL, __dso_handle);
 			}
 		}
+		init_state = INITIALIZED;
 	}
 }
 
@@ -91,8 +99,6 @@ static void tr_where(const void* caller, Dl_info* info) {
 }
 
 static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
-	do_mtrace();
-
 	if (caller == NULL) {
 		return NULL;
 	}
@@ -110,17 +116,24 @@ void* malloc(size_t size) {
 	}
 
 	void* block = libc_malloc(size);
-	// GCC builtin black magic. See glibc-2.41/include libc-symbols.h: #define RETURN_ADDRESS (nr) for details
-	const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
 
-	Dl_info mem;
-	Dl_info* info = lock_and_info(caller, &mem);
-//
-//	tr_where(caller, info);
-//	/* We could be printing a NULL here; that's OK. */
-//	fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
-//
-	funlockfile(mallstream);
+	if (init_state == UNINITIALIZED) {
+		do_mtrace();
+	}
+	if (init_state == INITIALIZED) {
+		// GCC builtin black magic. See glibc-2.41/include libc-symbols.h: #define RETURN_ADDRESS (nr) for details
+		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+		Dl_info mem;
+		Dl_info* info = lock_and_info(caller, &mem);
+
+		tr_where(caller, info);
+		/* We could be printing a NULL here; that's OK. */
+		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+
+		funlockfile(mallstream);
+	}
+
 	return block;
 }
 
