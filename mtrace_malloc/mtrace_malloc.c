@@ -40,9 +40,7 @@ static void do_mtrace(void) {
 	mallfile = secure_getenv(mallenv);
 	if (mallfile != NULL) {
 		init_state = PARTIAL;
-		// fopen relies on malloc to run. This infinitely recurses. Use syscalls directly and hope it doesn't break.
-		//mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
-		fprintf(stderr, "%s\n", mallfile);
+		// fopen uses malloc. Careful state management is used to avoid infinite recursion
 		mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
 		if (mallstream != NULL) {
 			// Be sure it doesn't malloc its own buffer!
@@ -144,6 +142,24 @@ void free(void* ptr) {
 	}
 
 	libc_free(ptr);
+	if (init_state == UNINITIALIZED) {
+		do_mtrace();
+	}
+	if (init_state == INITIALIZED) {
+		if (ptr == NULL) {
+			return;
+		}
+
+		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+		Dl_info mem;
+		Dl_info *info = lock_and_info(caller, &mem);
+
+		tr_where(caller, info);
+		fprintf(mallstream, "- %p\n", ptr);
+
+		funlockfile(mallstream);
+	}
 	return;
 }
 
@@ -153,14 +169,89 @@ void* calloc(size_t nmemb, size_t size) {
 		*(void **) (&libc_calloc) = dlsym(RTLD_NEXT, "calloc");
 	}
 
-	return libc_calloc(nmemb, size);
+	void* block = libc_calloc(nmemb, size);
+
+	if (init_state == UNINITIALIZED) {
+		do_mtrace();
+	}
+	if (init_state == INITIALIZED) {
+		// GCC builtin black magic. See glibc-2.41/include libc-symbols.h: #define RETURN_ADDRESS (nr) for details
+		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+		Dl_info mem;
+		Dl_info* info = lock_and_info(caller, &mem);
+
+		tr_where(caller, info);
+		/* We could be printing a NULL here; that's OK. */
+		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+
+		funlockfile(mallstream);
+	}
+
+	return block;
 }
 
 void* realloc(void* ptr, size_t size) {
-	static void* (*libc_realloc)(void* _Nullable, size_t) = NULL;
+	static void* (*libc_realloc)(void*, size_t) = NULL;
 	if (!libc_realloc) {
 		*(void **) (&libc_realloc) = dlsym(RTLD_NEXT, "realloc");
 	}
 
-	return libc_realloc(ptr, size);
+	void* block = libc_realloc(ptr, size);
+
+	if (init_state == UNINITIALIZED) {
+		do_mtrace();
+	}
+	if (init_state == INITIALIZED) {
+		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+		Dl_info mem;
+		Dl_info* info = lock_and_info(caller, &mem);
+
+		tr_where(caller, info);
+		if (block == NULL) {
+			if (size != 0) {
+				/* Failed realloc. */
+				fprintf(mallstream, "! %p %#lx\n", ptr, (unsigned long int) size);
+			} else {
+				fprintf(mallstream, "- %p\n", ptr);
+			}
+		} else if (ptr == NULL) {
+			fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+		} else {
+			fprintf(mallstream, "< %p\n", ptr);
+			tr_where(caller, info);
+			fprintf(mallstream, "> %p %#lx\n", block, (unsigned long int) size);
+		}
+
+		funlockfile(mallstream);
+	}
+
+	return block;
+}
+
+void* memalign(size_t alignment, size_t size) {
+	static void* (*libc_memalign)(size_t, size_t) = NULL;
+	if (!libc_memalign) {
+		*(void**) (&libc_memalign) = dlsym(RTLD_NEXT, "memalign");
+	}
+
+	void* block = libc_memalign(alignment, size);
+
+	if (init_state == UNINITIALIZED) {
+		do_mtrace();
+	}
+	if (init_state == INITIALIZED) {
+		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
+
+		Dl_info mem;
+		Dl_info* info = lock_and_info(caller, &mem);
+
+		tr_where(caller, info);
+		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+
+		funlockfile(mallstream);
+	}
+
+	return block;
 }
