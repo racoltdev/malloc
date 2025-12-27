@@ -7,7 +7,8 @@
 #include <stdio.h>    // fprintf, sprintf
 #include <string.h>   // strlen
 #include <inttypes.h> // PRIxPTR
-#include <fcntl.h>     // open
+#include <fcntl.h>    // open
+#include <sys/file.h> // flock
 #include <errno.h>
 #include <stdbool.h>
 
@@ -23,6 +24,15 @@ static enum InitState init_state = UNINITIALIZED;
 static void release_libc_mem(void) {
 	if (mallstream != NULL) {
 		//__libc_freeres();
+	}
+}
+
+static void unlock(void) {
+	int fd = fileno(mallstream);
+	if (flock(fd, LOCK_UN) == -1) {
+		int err = errno;
+		fprintf(stderr, "flock: %d\n", err);
+		exit(1);
 	}
 }
 
@@ -102,7 +112,13 @@ static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
 	}
 
 	Dl_info* res = dladdr(caller, mem) ? mem : NULL;
-	flockfile(mallstream);
+	int fd = fileno(mallstream);
+	if (flock(fd, LOCK_EX) == -1) {
+		int err = errno;
+		fprintf(stderr, "flock: %d", err);
+		exit(1);
+	}
+
 	return res;
 }
 
@@ -129,7 +145,7 @@ void* malloc(size_t size) {
 		/* We could be printing a NULL here; that's OK. */
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
 
-		funlockfile(mallstream);
+		unlock();
 	}
 
 	return block;
@@ -158,7 +174,7 @@ void free(void* ptr) {
 		tr_where(caller, info);
 		fprintf(mallstream, "- %p\n", ptr);
 
-		funlockfile(mallstream);
+		unlock();
 	}
 	return;
 }
@@ -185,7 +201,7 @@ void* calloc(size_t nmemb, size_t size) {
 		/* We could be printing a NULL here; that's OK. */
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
 
-		funlockfile(mallstream);
+		unlock();
 	}
 
 	return block;
@@ -224,7 +240,7 @@ void* realloc(void* ptr, size_t size) {
 			fprintf(mallstream, "> %p %#lx\n", block, (unsigned long int) size);
 		}
 
-		funlockfile(mallstream);
+		unlock();
 	}
 
 	return block;
@@ -250,7 +266,7 @@ void* memalign(size_t alignment, size_t size) {
 		tr_where(caller, info);
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
 
-		funlockfile(mallstream);
+		unlock();
 	}
 
 	return block;
