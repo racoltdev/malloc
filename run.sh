@@ -4,4 +4,5 @@ if [ $# -gt 0 ]; then
 	lib=$1
 fi
 
+echo "= Start" > m.trace
 LD_PRELOAD=$PWD/$lib MALLOC_TRACE=./m.trace ./main

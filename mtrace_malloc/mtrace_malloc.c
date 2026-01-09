@@ -51,13 +51,16 @@ static void do_mtrace(void) {
 	if (mallfile != NULL) {
 		init_state = PARTIAL;
 		// fopen uses malloc. Careful state management is used to avoid infinite recursion
-		mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "wce");
+		// This works if mallfile exists at start and contains "= Start" on the first line
+		// TODO process sync (mutex or sempahore) to determine if file is already opened by
+		// another mtrace process would be better
+		mallstream = fopen(mallfile != NULL ? mallfile : "/dev/null", "ace");
 		if (mallstream != NULL) {
 			// Be sure it doesn't malloc its own buffer!
 			static char tracebuf[512];
 
 			setvbuf(mallstream, tracebuf, _IOFBF, sizeof(tracebuf));
-			fprintf(mallstream, "= Start\n");
+			//fprintf(mallstream, "= Start\n");
 			if (!added_atexit_handler) {
 				added_atexit_handler = 1;
 				// TODO I need to dig into libc and figure out how to make a proper exit handler.
@@ -130,6 +133,11 @@ void* malloc(size_t size) {
 	}
 
 	void* block = libc_malloc(size);
+	if (!block) {
+		int err = errno;
+		fprintf(stderr, "malloc: %d", err);
+		exit(1);
+	}
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -144,7 +152,7 @@ void* malloc(size_t size) {
 		tr_where(caller, info);
 		/* We could be printing a NULL here; that's OK. */
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
-
+		fflush(mallstream);
 		unlock();
 	}
 
@@ -173,6 +181,7 @@ void free(void* ptr) {
 
 		tr_where(caller, info);
 		fprintf(mallstream, "- %p\n", ptr);
+		fflush(mallstream);
 
 		unlock();
 	}
@@ -186,6 +195,11 @@ void* calloc(size_t nmemb, size_t size) {
 	}
 
 	void* block = libc_calloc(nmemb, size);
+	if (!block) {
+		int err = errno;
+		fprintf(stderr, "calloc: %d", err);
+		exit(1);
+	}
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -200,6 +214,7 @@ void* calloc(size_t nmemb, size_t size) {
 		tr_where(caller, info);
 		/* We could be printing a NULL here; that's OK. */
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+		fflush(mallstream);
 
 		unlock();
 	}
@@ -214,6 +229,7 @@ void* realloc(void* ptr, size_t size) {
 	}
 
 	void* block = libc_realloc(ptr, size);
+	int err = errno;
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -229,6 +245,7 @@ void* realloc(void* ptr, size_t size) {
 			if (size != 0) {
 				/* Failed realloc. */
 				fprintf(mallstream, "! %p %#lx\n", ptr, (unsigned long int) size);
+				fprintf(stderr, "realloc: %d", err);
 			} else {
 				fprintf(mallstream, "- %p\n", ptr);
 			}
@@ -241,6 +258,7 @@ void* realloc(void* ptr, size_t size) {
 		}
 
 		unlock();
+		fflush(mallstream);
 	}
 
 	return block;
@@ -253,6 +271,11 @@ void* memalign(size_t alignment, size_t size) {
 	}
 
 	void* block = libc_memalign(alignment, size);
+	if (!block) {
+		int err = errno;
+		fprintf(stderr, "memalign: %d", err);
+		exit(1);
+	}
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -265,6 +288,7 @@ void* memalign(size_t alignment, size_t size) {
 
 		tr_where(caller, info);
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
+		fflush(mallstream);
 
 		unlock();
 	}
