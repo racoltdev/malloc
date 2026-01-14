@@ -136,11 +136,12 @@ static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
 		return NULL;
 	}
 
+	// dladdr returns 0 on complete failure, but no specific err available with dlerror()
 	Dl_info* res = dladdr(caller, mem) ? mem : NULL;
 	int fd = fileno(mallstream);
 	if (flock(fd, LOCK_EX) == -1) {
 		int err = errno;
-		fprintf(stderr, "flock: %d", err);
+		fprintf(stderr, "mtrace_malloc encountered an error while attempting to gain a file lock with flock:\n%d", err);
 		exit(1);
 	}
 
@@ -152,20 +153,23 @@ void* malloc(size_t size) {
 	if (!libc_malloc) {
 		// This avoids a pedantic compiler warning about assigning from void
 		*(void **) (&libc_malloc) = dlsym(RTLD_NEXT, "malloc");
+
+		if (!libc_malloc) {
+			fprintf(stderr, "mtrace_malloc enountered an error while attempting to load libc malloc with dlsym:\n%s\n", dlerror());
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	void* block = libc_malloc(size);
-	if (!block) {
-		int err = errno;
-		fprintf(stderr, "malloc: %d", err);
-		exit(1);
-	}
+	int err = errno;
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
 	}
 	if (init_state == INITIALIZED) {
 		// GCC builtin black magic. See glibc-2.41/include libc-symbols.h: #define RETURN_ADDRESS (nr) for details
+		// Scans up the stack to figure out who called malloc
+		// No information on failure handling available. /shrug
 		const void* caller = __builtin_extract_return_addr(__builtin_return_address(0));
 
 		Dl_info mem;
@@ -179,6 +183,13 @@ void* malloc(size_t size) {
 		unlock();
 	}
 
+	// to preserve malloc behavior as much as possible, ensure errno reflects the status
+	// of libc_malloc when an error occurs there, and only display errno from other calls
+	// in this function if malloc performed correctly.
+	if (!block) {
+		errno = err;
+	}
+
 	return block;
 }
 
@@ -186,9 +197,16 @@ void free(void* ptr) {
 	static void (*libc_free)(void*) = NULL;
 	if (!libc_free) {
 		*(void **) (&libc_free) = dlsym(RTLD_NEXT, "free");
+
+		if (!libc_free) {
+			fprintf(stderr, "mtrace_malloc enountered an error while attempting to load libc free with dlsym:\n%s\n", dlerror());
+			exit(EXIT_FAILURE);
+		}
 	}
 
+	// Does not alter errno
 	libc_free(ptr);
+
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
 	}
@@ -215,14 +233,15 @@ void* calloc(size_t nmemb, size_t size) {
 	static void* (*libc_calloc)(size_t, size_t) = NULL;
 	if (!libc_calloc) {
 		*(void **) (&libc_calloc) = dlsym(RTLD_NEXT, "calloc");
+
+		if (!libc_calloc) {
+			fprintf(stderr, "mtrace_malloc enountered an error while attempting to load libc calloc with dlsym:\n%s\n", dlerror());
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	void* block = libc_calloc(nmemb, size);
-	if (!block) {
-		int err = errno;
-		fprintf(stderr, "calloc: %d", err);
-		exit(1);
-	}
+	int err = errno;
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -242,6 +261,10 @@ void* calloc(size_t nmemb, size_t size) {
 		unlock();
 	}
 
+	if (!block) {
+		errno = err;
+	}
+
 	return block;
 }
 
@@ -249,6 +272,11 @@ void* realloc(void* ptr, size_t size) {
 	static void* (*libc_realloc)(void*, size_t) = NULL;
 	if (!libc_realloc) {
 		*(void **) (&libc_realloc) = dlsym(RTLD_NEXT, "realloc");
+
+		if (!libc_realloc) {
+			fprintf(stderr, "mtrace_malloc enountered an error while attempting to load libc realloc with dlsym:\n%s\n", dlerror());
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	void* block = libc_realloc(ptr, size);
@@ -284,6 +312,10 @@ void* realloc(void* ptr, size_t size) {
 		unlock();
 	}
 
+	if (!block) {
+		errno = err;
+	}
+
 	return block;
 }
 
@@ -291,14 +323,15 @@ void* memalign(size_t alignment, size_t size) {
 	static void* (*libc_memalign)(size_t, size_t) = NULL;
 	if (!libc_memalign) {
 		*(void**) (&libc_memalign) = dlsym(RTLD_NEXT, "memalign");
+
+		if (!libc_memalign) {
+			fprintf(stderr, "mtrace_malloc enountered an error while attempting to load libc memalign with dlsym:\n%s\n", dlerror());
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	void* block = libc_memalign(alignment, size);
-	if (!block) {
-		int err = errno;
-		fprintf(stderr, "memalign: %d", err);
-		exit(1);
-	}
+	int err = errno;
 
 	if (init_state == UNINITIALIZED) {
 		do_mtrace();
@@ -314,6 +347,10 @@ void* memalign(size_t alignment, size_t size) {
 		fflush(mallstream);
 
 		unlock();
+	}
+
+	if (!block) {
+		errno = err;
 	}
 
 	return block;
