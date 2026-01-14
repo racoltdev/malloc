@@ -175,6 +175,7 @@ void* malloc(size_t size) {
 		/* We could be printing a NULL here; that's OK. */
 		fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
 		fflush(mallstream);
+
 		unlock();
 	}
 
@@ -266,8 +267,8 @@ void* realloc(void* ptr, size_t size) {
 		if (block == NULL) {
 			if (size != 0) {
 				/* Failed realloc. */
-				// TODO Either every allocation call should have a fail msg, or none should
-				fprintf(mallstream, "! %p %#lx\n", ptr, (unsigned long int) size);
+				/* We could be printing a NULL here; that's OK. */
+				fprintf(mallstream, "+ %p %#lx\n", block, (unsigned long int) size);
 			} else {
 				fprintf(mallstream, "- %p\n", ptr);
 			}
@@ -278,9 +279,9 @@ void* realloc(void* ptr, size_t size) {
 			tr_where(caller, info);
 			fprintf(mallstream, "> %p %#lx\n", block, (unsigned long int) size);
 		}
+		fflush(mallstream);
 
 		unlock();
-		fflush(mallstream);
 	}
 
 	return block;
