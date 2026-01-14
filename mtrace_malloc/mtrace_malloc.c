@@ -1,3 +1,25 @@
+/* mtrace library implementation
+	This file is part of the mtrace_malloc library.
+
+	This file is a modification of a work found within the GNU C
+	Library. In particular, it is a modification of malloc's
+	mtrace-impl.c made to work without malloc hooks.
+	Modification date: Jan 14, 2026
+
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Lesser General Public
+	License as published by the Free Software Foundation; either
+	version 2.1 of the License, or (at your option) any later version.
+
+	The mtrace_malloc library is distributed in the hope that it will be
+	useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+	Lesser General Public License for more details.
+
+	You should have received a copy of the GNU Lesser General Public
+	License along with the mtrace_malloc library; if not, see
+	<https://www.gnu.org/licenses/>.  */
+
 #define _GNU_SOURCE
 #include "mtrace_malloc.h"
 
@@ -244,8 +266,8 @@ void* realloc(void* ptr, size_t size) {
 		if (block == NULL) {
 			if (size != 0) {
 				/* Failed realloc. */
+				// TODO Either every allocation call should have a fail msg, or none should
 				fprintf(mallstream, "! %p %#lx\n", ptr, (unsigned long int) size);
-				fprintf(stderr, "realloc: %d", err);
 			} else {
 				fprintf(mallstream, "- %p\n", ptr);
 			}
