@@ -1,10 +1,10 @@
-/* mtrace library implementation
-	This file is part of the reduced_mtrace_malloc library.
+/* mpmtrace library implementation
+	This file is part of the mpmtrace_malloc library.
 
 	This file is a modification of a work found within the GNU C
 	Library. In particular, it is a modification of malloc's
 	mtrace-impl.c made to work without malloc hooks.
-	Modification date: Jan 14, 2026
+	Modification date: Feb 14, 2026
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -21,7 +21,7 @@
 	<https://www.gnu.org/licenses/>.  */
 
 #define _GNU_SOURCE
-#include "reduced_mtrace_malloc.h"
+#include "mpmtrace_malloc.h"
 
 #include <stddef.h>   // size_t, ptrdiff_t
 #include <stdlib.h>   // alloca

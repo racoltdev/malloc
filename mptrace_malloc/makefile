@@ -1,4 +1,4 @@
-# mtrace library build tool
+# mpmtrace library build tool
 #	This file is part of the reduced_mtrace_malloc library.
 #
 #	This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
 #	License along with the mtrace_malloc library; if not, see
 #	<https://www.gnu.org/licenses/>.
 
-TARGET := reduced_mtrace_malloc
+TARGET := mpmtrace_malloc
 LIB := lib$(TARGET)
 
 BUILD_DIR := build/

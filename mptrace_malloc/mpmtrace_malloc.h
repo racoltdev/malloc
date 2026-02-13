@@ -1,5 +1,5 @@
-/* reduced mtrace library API
-	This file is part of the reduced_mtrace_malloc library.
+/* mpmtrace library API
+	This file is part of the mpmtrace_malloc library.
 
 	This file is a modification of a work found within the GNU C
 	Library. In particular, it is a modification of malloc's
