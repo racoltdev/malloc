@@ -10,7 +10,7 @@ The output format is notably different in a few ways:
   namely malloc's mtrace.c and mtrace-impl.c files. As such, the </br>
   mtrace_malloc library is licensed under LGPL 2.1. See the [LICENSE](LICENSE)</br>
   file distributed with this library to view the license.</br>
-  
+
   This library is free software; you can redistribute it and/or</br>
   modify it under the terms of the GNU Lesser General Public</br>
   License as published by the Free Software Foundation; either</br>

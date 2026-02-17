@@ -20,6 +20,11 @@
 	License along with the mtrace_malloc library; if not, see
 	<https://www.gnu.org/licenses/>.  */
 
+/* This tracer assumes it is not tracing a program that uses pid namespaces,
+ie the program does not include multiple containers.
+See https://www.man7.org/linux/man-pages/man7/pid_namespaces.7.html
+for more information */
+
 #define _GNU_SOURCE
 #include "mpmtrace_malloc.h"
 
@@ -33,9 +38,11 @@
 #include <sys/file.h> // flock
 #include <errno.h>
 #include <stdbool.h>
+#include <unistd.h>   // getpid
 
-static FILE* mallstream;
 static const char mallenv[] = "MALLOC_TRACE";
+static FILE* mallstream;
+static intmax_t pid = 0;
 
 enum InitState {
 	UNINITIALIZED, PARTIAL, INITIALIZED
@@ -89,6 +96,7 @@ static void do_mtrace(void) {
 				//__cxa_atexit((void (*)(void *))release_libc_mem, NULL, __dso_handle);
 			}
 		}
+		pid = (intmax_t) getpid();
 		init_state = INITIALIZED;
 	}
 }
@@ -125,7 +133,8 @@ static void tr_where(const void* caller, Dl_info* info) {
 				index++;
 			}
 
-			fprintf(mallstream, "@ %s%s%s[0x%" PRIxPTR "] ",
+			fprintf(mallstream, "%" PRIdMAX " %s%s%s[0x%" PRIxPTR "] ",
+					pid,
 					fname ? fname : "",
 					fname ? ":" : "",
 					buf,
@@ -135,6 +144,8 @@ static void tr_where(const void* caller, Dl_info* info) {
 			);
 		}
 		else {
+			// I don't think this should ever happen?
+			// None of my data collection triggered this line
 			fprintf(mallstream, "@ [%p] ", caller);
 		}
 	}
