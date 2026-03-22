@@ -59,17 +59,15 @@ static void release_libc_mem(void) {
 }
 
 static void unlock(void) {
-	// TODO if a thread still holds a mutex, there are two options:
-	//     LOCK_UN anyways while keeping the mutex active (mutex lock must occur before LOCK_EX) Green try this first
+	// if using semaphores: if a thread still holds a semaphore, there are two options:
+	//     LOCK_UN anyways while keeping the semaphore active (semaphore wait must occur before LOCK_EX)
 	//         can juggle between these threads and other processes
-	//         if using a mutex, thread priority may be random or they may get roughly FIFO priority, idk
-	//     hold the LOCK_EX until no mutex locks remain:
-	//         if mutex before LOCK_EX, this has a chance to juggle between these threads and other processes
-	//         if LOCK_EX before mutex, this process dominates file access until threads are done
+	//         thread priority should be roughly FIFO priority
+	//     hold the LOCK_EX until no semaphore waits remain:
+	//         if semaphore wait before LOCK_EX, this has a chance to juggle between these threads and other processes, but not very likely
+	//         if LOCK_EX before semaphore, this process dominates file access until threads are done
 	// There should be no way for 2 threads to deadlock eachother with any arrangement unless something REALLY dumb is happening
 	// Juggling should prevent any deadlocks between threads and other processes.
-	// Correction: mutexes do not have queues, so there is absolutely no ordering following an unlock.
-	// For some amount of ordering, try semaphores
 	int fd = fileno(mallstream);
 	if (flock(fd, LOCK_UN) == -1) {
 		int err = errno;
@@ -79,7 +77,6 @@ static void unlock(void) {
 	pthread_mutex_unlock(&trace_mutex);
 }
 
-//TODO use malloc/free as variable symbols. Have them equal to libc_malloc during initialization, then replace them with mine
 static void do_mtrace(void) {
 	static int added_atexit_handler;
 	char* mallfile;
@@ -170,7 +167,6 @@ static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
 		return NULL;
 	}
 
-	// TODO add mutex to handle MT locking
 	pthread_mutex_lock(&trace_mutex);
 
 	// dladdr returns 0 on complete failure, but no specific err available with dlerror()
