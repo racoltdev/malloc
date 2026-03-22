@@ -4,7 +4,7 @@
 	This file is a modification of a work found within the GNU C
 	Library. In particular, it is a modification of malloc's
 	mtrace-impl.c made to work without malloc hooks.
-	Modification date: Feb 14, 2026
+	Modification date: Mar 21, 2026
 
 	This library is free software; you can redistribute it and/or
 	modify it under the terms of the GNU Lesser General Public
@@ -39,10 +39,12 @@ for more information */
 #include <errno.h>
 #include <stdbool.h>
 #include <unistd.h>   // getpid
+#include <pthread.h>    // pthread_mutex_t/lock/unlock/trylock/destroy
 
 static const char mallenv[] = "MALLOC_TRACE";
 static FILE* mallstream;
 static intmax_t pid = 0;
+static pthread_mutex_t trace_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 enum InitState {
 	UNINITIALIZED, PARTIAL, INITIALIZED
@@ -57,12 +59,24 @@ static void release_libc_mem(void) {
 }
 
 static void unlock(void) {
+	// TODO if a thread still holds a mutex, there are two options:
+	//     LOCK_UN anyways while keeping the mutex active (mutex lock must occur before LOCK_EX) Green try this first
+	//         can juggle between these threads and other processes
+	//         if using a mutex, thread priority may be random or they may get roughly FIFO priority, idk
+	//     hold the LOCK_EX until no mutex locks remain:
+	//         if mutex before LOCK_EX, this has a chance to juggle between these threads and other processes
+	//         if LOCK_EX before mutex, this process dominates file access until threads are done
+	// There should be no way for 2 threads to deadlock eachother with any arrangement unless something REALLY dumb is happening
+	// Juggling should prevent any deadlocks between threads and other processes.
+	// Correction: mutexes do not have queues, so there is absolutely no ordering following an unlock.
+	// For some amount of ordering, try semaphores
 	int fd = fileno(mallstream);
 	if (flock(fd, LOCK_UN) == -1) {
 		int err = errno;
 		fprintf(stderr, "flock: %d\n", err);
 		exit(1);
 	}
+	pthread_mutex_unlock(&trace_mutex);
 }
 
 //TODO use malloc/free as variable symbols. Have them equal to libc_malloc during initialization, then replace them with mine
@@ -155,6 +169,9 @@ static Dl_info* lock_and_info(const void* caller, Dl_info* mem) {
 	if (caller == NULL) {
 		return NULL;
 	}
+
+	// TODO add mutex to handle MT locking
+	pthread_mutex_lock(&trace_mutex);
 
 	// dladdr returns 0 on complete failure, but no specific err available with dlerror()
 	Dl_info* res = dladdr(caller, mem) ? mem : NULL;
