@@ -1,9 +1,9 @@
 This library functions similarly to mtrace(3), without using malloc hooks. Instead it is loaded in with LD_PRELOAD and calls libc malloc functions using dlsym(). mptrace_malloc is made to collect trace information for multithreaded programs and reduce disk usage where possible. </br>
 The output format is notably different in a few ways:
-    The first line of the trace is not '= Start', it's just the start of the data
-    Lines do not start with '@'
-    Full file paths are not printed, just the base name.
-    PIDs are printed with each line
+- The first line of the trace is not '= Start', it's just the start of the data
+- Lines do not start with '@'
+- Full file paths are not printed, just the base name.
+- PIDs are printed with each line
 
 ### License Information:
   Parts of this library are modifications of the GNU C Library 2.42,</br>
