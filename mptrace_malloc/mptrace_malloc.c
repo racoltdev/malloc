@@ -1,4 +1,4 @@
-/* mpmtrace library implementation
+/* mptrace library implementation
 	This file is part of the mpmtrace_malloc library.
 
 	This file is a modification of a work found within the GNU C
@@ -11,13 +11,13 @@
 	License as published by the Free Software Foundation; either
 	version 2.1 of the License, or (at your option) any later version.
 
-	The mtrace_malloc library is distributed in the hope that it will be
+	The mptrace library is distributed in the hope that it will be
 	useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 	Lesser General Public License for more details.
 
 	You should have received a copy of the GNU Lesser General Public
-	License along with the mtrace_malloc library; if not, see
+	License along with the mptrace library; if not, see
 	<https://www.gnu.org/licenses/>.  */
 
 /* This tracer assumes it is not tracing a program that uses pid namespaces,
@@ -26,7 +26,7 @@ See https://www.man7.org/linux/man-pages/man7/pid_namespaces.7.html
 for more information */
 
 #define _GNU_SOURCE
-#include "mpmtrace_malloc.h"
+#include "mptrace_malloc.h"
 
 #include <stddef.h>   // size_t, ptrdiff_t
 #include <stdlib.h>   // alloca

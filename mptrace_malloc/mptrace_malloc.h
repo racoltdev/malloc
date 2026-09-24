@@ -1,5 +1,5 @@
-/* mpmtrace library API
-	This file is part of the mpmtrace_malloc library.
+/* mptrace library API
+	This file is part of the mptrace library.
 
 	This file is a modification of a work found within the GNU C
 	Library. In particular, it is a modification of malloc's
@@ -11,7 +11,7 @@
 	License as published by the Free Software Foundation; either
 	version 2.1 of the License, or (at your option) any later version.
 
-	The mtrace_malloc library is distributed in the hope that it will be
+	The mptrace library is distributed in the hope that it will be
 	useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 	Lesser General Public License for more details.
@@ -20,8 +20,8 @@
 	License along with the mtrace_malloc library; if not, see
 	<https://www.gnu.org/licenses/>.  */
 
-#ifndef MTRACE_MALLOC_H
-#define MTRACE_MALLOC_H
+#ifndef MPTRACE_MALLOC_H
+#define MPTRACE_MALLOC_H
 
 #include <stddef.h> //size_t
 
